@@ -18,9 +18,71 @@ class _EditPatientScreenState extends State<EditPatientScreen>
   final _contactController = TextEditingController();
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
+  final _weightController = TextEditingController();
+  final _allergiesController = TextEditingController();
   String _selectedGender = 'Male';
   bool _isSubmitting = false;
   late Patient _patient;
+
+  // Comorbidities map to track selected comorbidities
+  final Map<String, bool> _comorbidities = {
+    // Cardiovascular
+    'Hypertension': false,
+    'Heart Disease': false,
+    'Heart Failure': false,
+    'Arrhythmia': false,
+
+    // Respiratory
+    'Asthma': false,
+    'COPD': false,
+    'Sleep Apnea': false,
+    'Pulmonary Fibrosis': false,
+
+    // Endocrine
+    'Diabetes': false,
+    'Thyroid Disorder': false,
+    'Obesity': false,
+    'Hyperlipidemia': false,
+
+    // Neurological
+    'Stroke': false,
+    'Parkinson\'s': false,
+    'Alzheimer\'s': false,
+    'Epilepsy': false,
+
+    // Gastrointestinal
+    'GERD': false,
+    'Peptic Ulcer': false,
+    'IBS': false,
+    'Crohn\'s Disease': false,
+
+    // Musculoskeletal
+    'Arthritis': false,
+    'Osteoporosis': false,
+    'Fibromyalgia': false,
+
+    // Renal
+    'Kidney Disease': false,
+    'Kidney Stones': false,
+
+    // Psychiatric
+    'Depression': false,
+    'Anxiety': false,
+    'Bipolar Disorder': false,
+
+    // Other
+    'Cancer': false,
+    'HIV/AIDS': false,
+    'Anemia': false,
+  };
+
+  // Comorbidities categories for organized display
+  final Map<String, List<String>> _comorbidityCategories = {
+    'Cardiovascular': ['Hypertension', 'Heart Disease'],
+    'Respiratory': ['Asthma', 'COPD'],
+    'Endocrine': ['Diabetes', 'Thyroid Disorder'],
+    'Other': ['Arthritis', 'Kidney Disease'],
+  };
 
   // Animation controllers
   late AnimationController _animationController;
@@ -66,7 +128,18 @@ class _EditPatientScreenState extends State<EditPatientScreen>
     _contactController.text = _patient.contactNumber;
     _emailController.text = _patient.email ?? '';
     _addressController.text = _patient.address ?? '';
+    _weightController.text = _patient.weight?.toString() ?? '';
+    _allergiesController.text = _patient.allergies ?? '';
     _selectedGender = _patient.gender;
+
+    // Set comorbidities if they exist
+    if (_patient.comorbidities != null) {
+      for (final comorbidity in _patient.comorbidities!) {
+        if (_comorbidities.containsKey(comorbidity)) {
+          _comorbidities[comorbidity] = true;
+        }
+      }
+    }
   }
 
   @override
@@ -76,8 +149,18 @@ class _EditPatientScreenState extends State<EditPatientScreen>
     _contactController.dispose();
     _emailController.dispose();
     _addressController.dispose();
+    _weightController.dispose();
+    _allergiesController.dispose();
     _animationController.dispose();
     super.dispose();
+  }
+
+  // Get selected comorbidities as a list
+  List<String> get _selectedComorbidities {
+    return _comorbidities.entries
+        .where((entry) => entry.value)
+        .map((entry) => entry.key)
+        .toList();
   }
 
   Future<void> _updatePatient() async {
@@ -98,6 +181,13 @@ class _EditPatientScreenState extends State<EditPatientScreen>
       address: _addressController.text.isEmpty ? null : _addressController.text,
       registrationDate:
           _patient.registrationDate, // Keep the original registration date
+      weight: _weightController.text.isEmpty
+          ? null
+          : double.parse(_weightController.text),
+      allergies:
+          _allergiesController.text.isEmpty ? null : _allergiesController.text,
+      comorbidities:
+          _selectedComorbidities.isEmpty ? null : _selectedComorbidities,
     );
 
     try {
@@ -359,6 +449,48 @@ class _EditPatientScreenState extends State<EditPatientScreen>
                               }
                             },
                           ),
+                          const SizedBox(height: 16),
+
+                          // Weight field
+                          TextFormField(
+                            controller: _weightController,
+                            decoration: InputDecoration(
+                              labelText: 'Weight (Kg)',
+                              labelStyle: const TextStyle(fontSize: 14),
+                              prefixIcon:
+                                  const Icon(Icons.monitor_weight, size: 20),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withOpacity(0.3),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            style: const TextStyle(fontSize: 16),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value != null && value.isNotEmpty) {
+                                final weight = double.tryParse(value);
+                                if (weight == null) {
+                                  return 'Please enter a valid number';
+                                }
+                                if (weight <= 0 || weight > 500) {
+                                  return 'Please enter a realistic weight';
+                                }
+                              }
+                              return null;
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -482,6 +614,144 @@ class _EditPatientScreenState extends State<EditPatientScreen>
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+
+                  // Medical Information
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Medical Information',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Allergies field
+                          TextFormField(
+                            controller: _allergiesController,
+                            decoration: InputDecoration(
+                              labelText: 'Allergies (Optional)',
+                              labelStyle: const TextStyle(fontSize: 14),
+                              prefixIcon:
+                                  const Icon(Icons.health_and_safety, size: 20),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withOpacity(0.3),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            style: const TextStyle(fontSize: 16),
+                            maxLines: 2,
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Comorbidities section
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Comorbidities',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceVariant
+                                      .withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .primary
+                                        .withOpacity(0.15),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children:
+                                      _comorbidities.keys.map((condition) {
+                                    return FilterChip(
+                                      label: Text(
+                                        condition,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: _comorbidities[condition]!
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .onPrimary
+                                              : Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurface,
+                                        ),
+                                      ),
+                                      selected: _comorbidities[condition]!,
+                                      selectedColor:
+                                          Theme.of(context).colorScheme.primary,
+                                      checkmarkColor: Theme.of(context)
+                                          .colorScheme
+                                          .onPrimary,
+                                      backgroundColor:
+                                          Theme.of(context).colorScheme.surface,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        side: BorderSide(
+                                          color: _comorbidities[condition]!
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                              : Theme.of(context)
+                                                  .colorScheme
+                                                  .outline
+                                                  .withOpacity(0.5),
+                                        ),
+                                      ),
+                                      onSelected: (bool selected) {
+                                        setState(() {
+                                          _comorbidities[condition] = selected;
+                                        });
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
 
                   // Submit button
@@ -521,5 +791,20 @@ class _EditPatientScreenState extends State<EditPatientScreen>
         ),
       ),
     );
+  }
+
+  // Helper method to get appropriate icon for each category
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Cardiovascular':
+        return Icons.favorite;
+      case 'Respiratory':
+        return Icons.air;
+      case 'Endocrine':
+        return Icons.water_drop;
+      case 'Other':
+      default:
+        return Icons.medical_information;
+    }
   }
 }

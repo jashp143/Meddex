@@ -42,6 +42,8 @@ dependencies:
   # File selection
   file_selector: ^1.0.3
   file_selector_windows: ^0.9.3
+  file_picker: ^5.3.3
+  open_file: ^3.3.2
 
   # Excel and CSV handling
   excel: ^2.1.0

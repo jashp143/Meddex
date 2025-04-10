@@ -1,10 +1,12 @@
+import 'dart:convert';
+
 class Visit {
   final String id;
   final String patientId;
   final DateTime visitDate;
   final String prescription;
   final List<String> recommendedTests;
-  final Map<String, dynamic> testResults;
+  final List<TestResult> testResults;
   final DateTime? followUpDate;
   final String currentTreatmentPlan;
   final List<Medicine> medicines;
@@ -40,7 +42,7 @@ class Visit {
       'prescription': prescription,
       'recommendedTests':
           recommendedTests.isNotEmpty ? recommendedTests.join(',') : '',
-      'testResults': testResults.isEmpty ? '{}' : testResults.toString(),
+      'testResults': testResults.map((r) => r.toMap()).toList(),
       'followUpDate': followUpDate?.toIso8601String(),
       'currentTreatmentPlan': currentTreatmentPlan,
       'medicines': medicines.map((m) => m.toMap()).toList(),
@@ -63,16 +65,37 @@ class Visit {
       return [];
     }
 
-    Map<String, dynamic> parseTestResults(dynamic resultsData) {
-      if (resultsData is String) {
-        if (resultsData.isEmpty || resultsData == '{}') {
-          return {};
-        }
-        return {'results': resultsData};
-      } else if (resultsData is Map) {
-        return Map<String, dynamic>.from(resultsData);
+    List<TestResult> parseTestResults(dynamic resultsData) {
+      if (resultsData is List) {
+        return resultsData.map((result) => TestResult.fromMap(result)).toList();
       }
-      return {};
+      // For backward compatibility with the old format
+      if (resultsData is Map) {
+        // Try to convert old format to new format
+        List<TestResult> results = [];
+        resultsData.forEach((key, value) {
+          results.add(TestResult(
+            testName: key,
+            result: value.toString(),
+            filePath: null,
+          ));
+        });
+        return results;
+      }
+      // For string representation that needs parsing
+      if (resultsData is String &&
+          resultsData.isNotEmpty &&
+          resultsData != '{}') {
+        try {
+          // Try to parse as JSON if possible
+          final Map<String, dynamic> jsonMap =
+              Map<String, dynamic>.from(json.decode(resultsData));
+          return parseTestResults(jsonMap);
+        } catch (e) {
+          print('Error parsing test results: $e');
+        }
+      }
+      return [];
     }
 
     List<Medicine> parseMedicines(dynamic medicinesData) {
@@ -157,19 +180,66 @@ class Medicine {
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson() => toMap();
+
+  factory Medicine.fromJson(Map<String, dynamic> json) =>
+      Medicine.fromMap(json);
+}
+
+class TestResult {
+  final String testName;
+  final String result;
+  final String? filePath; // Path to PDF file
+  final DateTime? resultDate; // Date when the result was recorded
+
+  TestResult({
+    required this.testName,
+    required this.result,
+    this.filePath,
+    this.resultDate,
+  });
+
+  Map<String, dynamic> toMap() {
     return {
-      'name': name,
-      'dosage': dosage,
-      'duration': duration,
+      'testName': testName,
+      'result': result,
+      'filePath': filePath,
+      'resultDate': resultDate?.toIso8601String(),
     };
   }
 
-  factory Medicine.fromJson(Map<String, dynamic> json) {
-    return Medicine(
-      name: json['name'] as String,
-      dosage: json['dosage'] as String,
-      duration: json['duration'] as String,
+  factory TestResult.fromMap(Map<String, dynamic> map) {
+    return TestResult(
+      testName: map['testName'] ?? '',
+      result: map['result'] ?? '',
+      filePath: map['filePath'],
+      resultDate:
+          map['resultDate'] != null ? DateTime.parse(map['resultDate']) : null,
     );
   }
+
+  // Validate the test result
+  bool isValid() {
+    return testName.isNotEmpty && (result.isNotEmpty || filePath != null);
+  }
+
+  // Create a copy of the test result with updated fields
+  TestResult copyWith({
+    String? testName,
+    String? result,
+    String? filePath,
+    DateTime? resultDate,
+  }) {
+    return TestResult(
+      testName: testName ?? this.testName,
+      result: result ?? this.result,
+      filePath: filePath ?? this.filePath,
+      resultDate: resultDate ?? this.resultDate,
+    );
+  }
+
+  Map<String, dynamic> toJson() => toMap();
+
+  factory TestResult.fromJson(Map<String, dynamic> json) =>
+      TestResult.fromMap(json);
 }

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:open_file/open_file.dart';
+import 'dart:ui';
 import '../models/patient.dart';
 import '../models/visit.dart';
 import '../utils/patient_controller.dart';
+import '../widgets/custom_text_field.dart';
 
 class PatientDetailScreen extends StatefulWidget {
   const PatientDetailScreen({super.key});
@@ -12,31 +15,27 @@ class PatientDetailScreen extends StatefulWidget {
 }
 
 class _PatientDetailScreenState extends State<PatientDetailScreen> {
-  List<Visit> _visits = [];
+  late Patient _patient;
   bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    // We'll load visits in didChangeDependencies to get context
-  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _patient = ModalRoute.of(context)!.settings.arguments as Patient;
     _loadVisits();
   }
 
   Future<void> _loadVisits() async {
-    final patient = ModalRoute.of(context)!.settings.arguments as Patient;
+    setState(() {
+      _isLoading = true;
+    });
+
     final patientController =
         Provider.of<PatientController>(context, listen: false);
-
-    final visits = await patientController.getVisitsForPatient(patient.id);
+    await patientController.loadVisits(_patient.id);
 
     if (mounted) {
       setState(() {
-        _visits = visits;
         _isLoading = false;
       });
     }
@@ -44,439 +43,627 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Get the patient from route arguments
-    final patient = ModalRoute.of(context)!.settings.arguments as Patient;
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          patient.name,
-          style: const TextStyle(fontSize: 18),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh Visits',
-            onPressed: () {
-              setState(() {
-                _isLoading = true;
-              });
-              _loadVisits();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              // Navigate to edit screen
-              Navigator.pushNamed(
-                context,
-                '/patient/edit',
-                arguments: patient,
-              ).then((_) => _loadVisits());
-            },
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadVisits,
-        child: Column(
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
-            _buildPatientInfo(context, patient),
-            const SizedBox(height: 16),
-            _buildVisitListHeader(context),
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(),
-                    )
-                  : _visits.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.medical_services_outlined,
-                                size: 64,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withOpacity(0.5),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No visits recorded yet',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Add a new visit using the button below',
-                                style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withOpacity(0.6),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : _buildVisitsList(_visits),
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // Navigate to add visit screen and refresh when returning
-          Navigator.pushNamed(
-            context,
-            '/visit/add',
-            arguments: patient,
-          ).then((_) => _loadVisits());
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New Visit'),
-        tooltip: 'Add New Visit',
-      ),
-    );
-  }
-
-  Widget _buildPatientInfo(BuildContext context, Patient patient) {
-    return Card(
-      margin: const EdgeInsets.all(16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Hero(
-                  tag: 'patient-avatar-${patient.id}',
-                  child: CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    child: Text(
-                      patient.name.substring(0, 1).toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 24,
-                        color: Theme.of(context).colorScheme.onPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        patient.name,
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      Text(
-                        '${patient.age} years, ${patient.gender}',
-                        style: Theme.of(context).textTheme.bodyLarge,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const Divider(height: 32),
-            _buildInfoRow(Icons.phone, 'Contact', patient.contactNumber),
-            if (patient.email != null)
-              _buildInfoRow(Icons.email, 'Email', patient.email!),
-            if (patient.address != null)
-              _buildInfoRow(Icons.home, 'Address', patient.address!),
-            _buildInfoRow(
-              Icons.calendar_today,
-              'Registered',
-              '${patient.registrationDate.day}/${patient.registrationDate.month}/${patient.registrationDate.year}',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: Colors.grey),
-          const SizedBox(width: 8),
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVisitListHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Visit History',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          TextButton.icon(
-            icon: const Icon(Icons.filter_list),
-            label: const Text('Filter'),
-            onPressed: () {
-              // Implement filter functionality
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVisitsList(List<Visit> visits) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: visits.length,
-      itemBuilder: (context, index) {
-        final visit = visits[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: ExpansionTile(
-            leading: CircleAvatar(
-              backgroundColor:
-                  Theme.of(context).colorScheme.primary.withOpacity(0.1),
-              child: Icon(
-                Icons.medical_services,
+            DrawerHeader(
+              decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primary,
               ),
-            ),
-            title: Text(
-              'Visit on ${visit.visitDate.day}/${visit.visitDate.month}/${visit.visitDate.year}',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text('Treatment: ${visit.currentTreatmentPlan}'),
-            childrenPadding: const EdgeInsets.all(16),
-            expandedCrossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildVisitDetail('Prescription', visit.prescription),
-              _buildVisitDetail('Tests', visit.recommendedTests.join(', ')),
-              const SizedBox(height: 8),
-
-              // Medications section
-              Card(
-                color: Theme.of(context)
-                    .colorScheme
-                    .surfaceVariant
-                    .withOpacity(0.3),
-                margin: EdgeInsets.zero,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.medication,
-                              size: 16,
-                              color: Theme.of(context).colorScheme.primary),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Medications',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ...visit.medicines.map((medicine) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('• '),
-                              Expanded(
-                                child: Text(
-                                  '${medicine.name}: ${medicine.dosage} - ${medicine.duration}',
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                      if (visit.medicines.isEmpty)
-                        Text(
-                          'No medications prescribed',
-                          style: TextStyle(
-                            fontStyle: FontStyle.italic,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurface
-                                .withOpacity(0.6),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Instructions
-              if (visit.instructions.isNotEmpty) ...[
-                _buildVisitDetail('Instructions', visit.instructions),
-                const SizedBox(height: 8),
-              ],
-
-              if (visit.followUpDate != null) ...[
-                Row(
-                  children: [
-                    Icon(
-                      Icons.event,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Follow-up on ${visit.followUpDate!.day}/${visit.followUpDate!.month}/${visit.followUpDate!.year}',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white,
+                    child: Text(
+                      _patient.name[0].toUpperCase(),
                       style: TextStyle(
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _patient.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Age: ${_patient.age} • ${_patient.gender}',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Home'),
+              onTap: () {
+                Navigator.pushNamed(context, '/home');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.people),
+              title: const Text('Patients'),
+              onTap: () {
+                Navigator.pushNamed(context, '/patients');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.calendar_today),
+              title: const Text('Appointments'),
+              onTap: () {
+                Navigator.pushNamed(context, '/appointments');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.search),
+              title: const Text('Search'),
+              onTap: () {
+                Navigator.pushNamed(context, '/search');
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.settings),
+              title: const Text('Settings'),
+              onTap: () {
+                Navigator.pushNamed(context, '/settings');
+              },
+            ),
+          ],
+        ),
+      ),
+      appBar: AppBar(
+        title: const Text('Patient Details'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () {
+              Navigator.pushNamed(
+                context,
+                '/patient/edit',
+                arguments: _patient,
+              );
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Combined Patient Information Card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Patient Basic Info
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 30,
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.1),
+                          child: Text(
+                            _patient.name[0].toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _patient.name,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Age: ${_patient.age} • ${_patient.gender}',
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Contact Information Section
+                    Text(
+                      'Contact Information',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildInfoRow(
+                      icon: Icons.phone,
+                      label: 'Phone',
+                      value: _patient.contactNumber,
+                    ),
+                    if (_patient.email != null)
+                      _buildInfoRow(
+                        icon: Icons.email,
+                        label: 'Email',
+                        value: _patient.email!,
+                      ),
+                    if (_patient.address != null)
+                      _buildInfoRow(
+                        icon: Icons.location_on,
+                        label: 'Address',
+                        value: _patient.address!,
+                      ),
+                    const SizedBox(height: 16),
+
+                    // Medical Information Section
+                    Text(
+                      'Medical Information',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_patient.weight != null)
+                      _buildInfoRow(
+                        icon: Icons.monitor_weight,
+                        label: 'Weight',
+                        value: '${_patient.weight} kg',
+                      ),
+                    if (_patient.allergies != null)
+                      _buildInfoRow(
+                        icon: Icons.warning,
+                        label: 'Allergies',
+                        value: _patient.allergies!,
+                      ),
+                    if (_patient.comorbidities != null)
+                      _buildInfoRow(
+                        icon: Icons.medical_services,
+                        label: 'Comorbidities',
+                        value: _patient.comorbidities!.join(', '),
+                      ),
                   ],
                 ),
-                const SizedBox(height: 8),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Visit History
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Visit History',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            '/visit/add',
+                            arguments: _patient,
+                          ),
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Add Visit'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : Consumer<PatientController>(
+                            builder: (context, patientController, child) {
+                              final visits =
+                                  patientController.getVisits(_patient.id);
+                              if (visits.isEmpty) {
+                                return Center(
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.medical_services_outlined,
+                                        size: 48,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary
+                                            .withOpacity(0.5),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'No visits recorded yet',
+                                        style: TextStyle(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(0.7),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                              return ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: visits.length,
+                                itemBuilder: (context, index) {
+                                  final visit = visits[index];
+                                  return _buildVisitCard(visit);
+                                },
+                              );
+                            },
+                          ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 20,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.7),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                  ),
+                ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              const Divider(),
-              const SizedBox(height: 8),
+  Widget _buildVisitCard(Visit visit) {
+    return ExpandableVisitCard(
+      visit: visit,
+      patient: _patient,
+      onEdit: () {
+        Navigator.pushNamed(
+          context,
+          '/visit/add',
+          arguments: {
+            'patient': _patient,
+            'visit': visit,
+            'isEdit': true,
+          },
+        ).then((_) => _loadVisits());
+      },
+      onOpenPdf: _openPdfFile,
+    );
+  }
 
-              // Payment details
+  Widget _buildGlassCard({required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper method to open PDF files
+  void _openPdfFile(String filePath) {
+    try {
+      OpenFile.open(filePath).then((result) {
+        if (result.type != ResultType.done) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error opening file: ${result.message}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error opening file: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
+
+class ExpandableVisitCard extends StatefulWidget {
+  final Visit visit;
+  final Patient patient;
+  final VoidCallback onEdit;
+  final Function(String) onOpenPdf;
+
+  const ExpandableVisitCard({
+    super.key,
+    required this.visit,
+    required this.patient,
+    required this.onEdit,
+    required this.onOpenPdf,
+  });
+
+  @override
+  State<ExpandableVisitCard> createState() => _ExpandableVisitCardState();
+}
+
+class _ExpandableVisitCardState extends State<ExpandableVisitCard> {
+  bool isExpanded = false;
+
+  String formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+        ),
+      ),
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            isExpanded = !isExpanded;
+          });
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Payment:',
+                    formatDate(widget.visit.visitDate),
                     style: TextStyle(
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                   Row(
                     children: [
-                      Text(
-                        visit.paymentMode,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primaryContainer,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
-                          '\$${visit.totalBill.toStringAsFixed(2)}',
+                          '₹${widget.visit.consultationFee}',
                           style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.bold,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onPrimaryContainer,
                           ),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: widget.onEdit,
                       ),
                     ],
                   ),
                 ],
               ),
-
-              if (visit.pendingAmount > 0) ...[
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Pending: ',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .error
-                            .withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '\$${visit.pendingAmount.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 8),
+              if (widget.visit.followUpDate != null)
+                Text(
+                  'Follow-up: ${formatDate(widget.visit.followUpDate!)}',
+                  style: TextStyle(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.7),
+                  ),
                 ),
-              ],
-
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton.icon(
-                    icon: const Icon(Icons.print, size: 18),
-                    label: const Text('Print'),
-                    onPressed: () {
-                      // Implement print functionality
-                    },
+              const SizedBox(height: 8),
+              if (widget.visit.recommendedTests.isNotEmpty)
+                Wrap(
+                  spacing: 8,
+                  children: widget.visit.recommendedTests
+                      .map((test) => Chip(
+                            label: Text(test),
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withOpacity(0.1),
+                            labelStyle: TextStyle(
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ))
+                      .toList(),
+                ),
+              if (isExpanded) ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                _buildVisitDetailRow(
+                    'Total Bill', '₹${widget.visit.totalBill}'),
+                const SizedBox(height: 8),
+                _buildVisitDetailRow('Payment Mode', widget.visit.paymentMode),
+                if (widget.visit.medicines.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Medicines',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.edit, size: 18),
-                    label: const Text('Edit Visit'),
-                    onPressed: () {
-                      // Implement edit functionality
-                    },
-                  ),
+                  const SizedBox(height: 8),
+                  ...widget.visit.medicines.map((medicine) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          '• ${medicine.name} - ${medicine.dosage}',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      )),
                 ],
-              ),
+                if (widget.visit.testResults.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Test Results',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...widget.visit.testResults.map((result) => ListTile(
+                        leading: const Icon(Icons.picture_as_pdf),
+                        title: Text(result.testName ?? 'Unnamed Test'),
+                        subtitle: Text(result.resultDate != null
+                            ? formatDate(result.resultDate!)
+                            : 'No date'),
+                        onTap: () => result.filePath != null
+                            ? widget.onOpenPdf(result.filePath!)
+                            : null,
+                      )),
+                ],
+              ],
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _buildVisitDetail(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Expanded(child: Text(value)),
-        ],
-      ),
+  Widget _buildVisitDetailRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 120,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

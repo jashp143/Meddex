@@ -40,32 +40,27 @@ class AuthController with ChangeNotifier {
       return;
     }
 
-    // Check if there's a saved auth status (e.g., from a previous session)
-    final isAuth = _prefs!.getBool('is_authenticated') ?? false;
-    _isAuthenticated = isAuth;
+    // Always require authentication when the app is started/reopened
+    _isAuthenticated = false;
     notifyListeners();
   }
 
   Future<void> login() async {
     _isAuthenticated = true;
     notifyListeners();
-
-    // Save auth status to preferences
-    if (_prefs == null) {
-      _prefs = await SharedPreferences.getInstance();
-    }
-    await _prefs!.setBool('is_authenticated', true);
   }
 
   Future<void> logout() async {
     _isAuthenticated = false;
     notifyListeners();
+  }
 
-    // Update preferences
+  // Method to check if PIN exists (for first-time users)
+  Future<bool> hasPinSet() async {
     if (_prefs == null) {
       _prefs = await SharedPreferences.getInstance();
     }
-    await _prefs!.setBool('is_authenticated', false);
+    return _prefs!.getString('user_pin') != null;
   }
 
   Future<bool> resetPin(String currentPin) async {
@@ -77,6 +72,22 @@ class AuthController with ChangeNotifier {
 
     if (savedPin == currentPin) {
       await _prefs!.remove('user_pin');
+      return true;
+    }
+
+    return false;
+  }
+  
+  // Method to update PIN
+  Future<bool> updatePin(String currentPin, String newPin) async {
+    if (_prefs == null) {
+      _prefs = await SharedPreferences.getInstance();
+    }
+
+    final savedPin = _prefs!.getString('user_pin') ?? '';
+
+    if (savedPin == currentPin) {
+      await _prefs!.setString('user_pin', newPin);
       return true;
     }
 

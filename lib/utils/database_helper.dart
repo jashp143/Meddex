@@ -23,8 +23,9 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'meddex.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -39,7 +40,10 @@ class DatabaseHelper {
         contactNumber TEXT NOT NULL,
         email TEXT,
         address TEXT,
-        registrationDate TEXT NOT NULL
+        registrationDate TEXT NOT NULL,
+        weight REAL,
+        allergies TEXT,
+        comorbidities TEXT
       )
     ''');
 
@@ -77,6 +81,14 @@ class DatabaseHelper {
         FOREIGN KEY (patientId) REFERENCES patients (id)
       )
     ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE patients ADD COLUMN weight REAL');
+      await db.execute('ALTER TABLE patients ADD COLUMN allergies TEXT');
+      await db.execute('ALTER TABLE patients ADD COLUMN comorbidities TEXT');
+    }
   }
 
   // Patient methods
@@ -189,11 +201,15 @@ class DatabaseHelper {
     final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59)
         .toIso8601String();
 
+    print('Debug - Date range for appointments: $startOfDay to $endOfDay');
+
     final List<Map<String, dynamic>> maps = await db.query(
       'appointments',
       where: 'appointmentDate BETWEEN ? AND ?',
       whereArgs: [startOfDay, endOfDay],
     );
+
+    print('Debug - Raw appointment query results: $maps');
 
     return List.generate(maps.length, (i) => Appointment.fromJson(maps[i]));
   }
@@ -216,6 +232,8 @@ class DatabaseHelper {
         DateTime(today.year, today.month, today.day).toIso8601String();
     final endOfDay = DateTime(today.year, today.month, today.day, 23, 59, 59)
         .toIso8601String();
+
+    print('Debug - Quick Stats - Date range: $startOfDay to $endOfDay');
 
     // Get total patients count
     final patientsCount = Sqflite.firstIntValue(
@@ -240,6 +258,13 @@ class DatabaseHelper {
           ),
         ) ??
         0;
+
+    print('Debug - Quick Stats - Raw appointments count: $appointmentsCount');
+
+    // Let's also do a direct check to see all appointments
+    final allAppointments =
+        await db.rawQuery('SELECT COUNT(*) FROM appointments');
+    print('Debug - Quick Stats - All appointments count: $allAppointments');
 
     return {
       'patients': patientsCount,

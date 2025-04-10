@@ -9,6 +9,7 @@ import '../utils/database_helper.dart';
 import '../screens/import_data_screen.dart';
 import '../services/export_service.dart';
 import '../utils/logger.dart';
+import '../utils/auth_controller.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -343,6 +344,173 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _showChangePinDialog() async {
+    final TextEditingController currentPinController = TextEditingController();
+    final TextEditingController newPinController = TextEditingController();
+    final TextEditingController confirmPinController = TextEditingController();
+
+    bool? result = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Change PIN'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: currentPinController,
+                  decoration: const InputDecoration(
+                    labelText: 'Current PIN',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  maxLength: 8,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: newPinController,
+                  decoration: const InputDecoration(
+                    labelText: 'New PIN',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  maxLength: 8,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: confirmPinController,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm New PIN',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: TextInputType.number,
+                  obscureText: true,
+                  maxLength: 8,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('CANCEL'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (newPinController.text.length < 4) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('PIN must be at least 4 digits'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                if (newPinController.text != confirmPinController.text) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('PINs do not match'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('SAVE'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true) {
+      final authController =
+          Provider.of<AuthController>(context, listen: false);
+      final success = await authController.updatePin(
+          currentPinController.text, newPinController.text);
+
+      if (success) {
+        _showSnackBar('PIN updated successfully', false);
+      } else {
+        _showSnackBar('Current PIN is incorrect', true);
+      }
+    }
+
+    // Clean up controllers
+    currentPinController.dispose();
+    newPinController.dispose();
+    confirmPinController.dispose();
+  }
+
+  Future<void> _showResetPinDialog() async {
+    final TextEditingController pinController = TextEditingController();
+
+    bool? result = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Reset PIN'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Warning: This will remove PIN protection from your app. Anyone will be able to access the app without a PIN.',
+                style: TextStyle(color: Colors.red),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: pinController,
+                decoration: const InputDecoration(
+                  labelText: 'Current PIN',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                obscureText: true,
+                maxLength: 8,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('CANCEL'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('RESET'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == true) {
+      final authController =
+          Provider.of<AuthController>(context, listen: false);
+      final success = await authController.resetPin(pinController.text);
+
+      if (success) {
+        _showSnackBar('PIN protection removed', false);
+      } else {
+        _showSnackBar('Current PIN is incorrect', true);
+      }
+    }
+
+    // Clean up controller
+    pinController.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeController = Provider.of<ThemeController>(context);
@@ -351,6 +519,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -656,6 +828,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                         ],
                       ),
+                    ),
+                  ),
+
+                  // Security settings
+                  Card(
+                    margin: const EdgeInsets.only(top: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text(
+                            'Security Settings',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const Divider(height: 0),
+                        ListTile(
+                          title: const Text('Change PIN'),
+                          subtitle:
+                              const Text('Update your app access PIN code'),
+                          leading: const Icon(Icons.lock_outline),
+                          onTap: _showChangePinDialog,
+                        ),
+                        ListTile(
+                          title: const Text('Reset PIN'),
+                          subtitle: const Text(
+                              'Remove PIN protection (requires current PIN)'),
+                          leading: const Icon(Icons.lock_open),
+                          onTap: _showResetPinDialog,
+                        ),
+                      ],
                     ),
                   ),
                 ],

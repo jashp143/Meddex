@@ -51,8 +51,41 @@ void main() async {
   );
 }
 
-class MedDexApp extends StatelessWidget {
+class MedDexApp extends StatefulWidget {
   const MedDexApp({super.key});
+
+  @override
+  State<MedDexApp> createState() => _MedDexAppState();
+}
+
+class _MedDexAppState extends State<MedDexApp> with WidgetsBindingObserver {
+  late AuthController _authController;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _authController = Provider.of<AuthController>(context, listen: false);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When app is paused (inactive or in background), log out to require PIN on resume
+    if (state == AppLifecycleState.paused) {
+      _authController.logout();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,15 +104,106 @@ class MedDexApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E88E5),
+          seedColor: const Color(0xFF5C6BC0), // Indigo
           brightness: Brightness.light,
+          primary: const Color(0xFF5C6BC0), // Indigo
+          secondary: const Color(0xFF7986CB), // Indigo 300
+          tertiary: const Color(0xFF9FA8DA), // Indigo 200
+          surface: Colors.white,
+          background: const Color(0xFFF5F5F5),
+        ),
+        cardTheme: CardTheme(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          color: Colors.white.withOpacity(0.8),
+        ),
+        appBarTheme: AppBarTheme(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          foregroundColor: const Color(0xFF5C6BC0), // Indigo
+          centerTitle: true,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            elevation: 0,
+            backgroundColor: const Color(0xFF5C6BC0), // Indigo
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.8),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF5C6BC0)), // Indigo
+          ),
         ),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1E88E5),
+          seedColor: const Color(0xFF7986CB), // Indigo 300
           brightness: Brightness.dark,
+          primary: const Color(0xFF7986CB), // Indigo 300
+          secondary: const Color(0xFF9FA8DA), // Indigo 200
+          tertiary: const Color(0xFF3949AB), // Indigo 700
+          surface: const Color(0xFF121212),
+          background: const Color(0xFF1E1E1E),
+        ),
+        cardTheme: CardTheme(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          color: const Color(0xFF2D2D2D).withOpacity(0.8),
+        ),
+        appBarTheme: const AppBarTheme(
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          foregroundColor: Color(0xFF9FA8DA), // Indigo 200
+          centerTitle: true,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            elevation: 0,
+            backgroundColor: const Color(0xFF7986CB), // Indigo 300
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: const Color(0xFF2D2D2D).withOpacity(0.8),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide:
+                const BorderSide(color: Color(0xFF9FA8DA)), // Indigo 200
+          ),
         ),
       ),
       themeMode: themeController.themeMode,

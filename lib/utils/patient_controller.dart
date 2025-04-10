@@ -7,6 +7,8 @@ import 'database_helper.dart';
 class PatientController extends ChangeNotifier {
   List<Patient> _patients = [];
   List<Appointment> _appointments = [];
+  Map<String, List<Visit>> _patientVisits =
+      {}; // Map to store visits by patient ID
   bool _isInitialized = false;
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
@@ -201,5 +203,23 @@ class PatientController extends ChangeNotifier {
       debugPrint('Error getting appointments for patient: $e');
       return [];
     }
+  }
+
+  // Load visits for a specific patient
+  Future<void> loadVisits(String patientId) async {
+    try {
+      final visits = await _dbHelper.getVisitsForPatient(patientId);
+      _patientVisits[patientId] = visits;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading visits: $e');
+      _patientVisits[patientId] = [];
+      notifyListeners();
+    }
+  }
+
+  // Get visits for a specific patient
+  List<Visit> getVisits(String patientId) {
+    return _patientVisits[patientId] ?? [];
   }
 }

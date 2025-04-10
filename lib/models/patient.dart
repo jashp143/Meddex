@@ -10,6 +10,9 @@ class Patient implements DatabaseItem {
   final String? email;
   final String? address;
   final DateTime registrationDate;
+  final double? weight; // Weight in Kg
+  final String? allergies; // Patient allergies
+  final List<String>? comorbidities; // Common comorbidities
 
   Patient({
     required this.id,
@@ -20,6 +23,9 @@ class Patient implements DatabaseItem {
     this.email,
     this.address,
     required this.registrationDate,
+    this.weight,
+    this.allergies,
+    this.comorbidities,
   });
 
   @override
@@ -33,6 +39,9 @@ class Patient implements DatabaseItem {
       'email': email,
       'address': address,
       'registrationDate': registrationDate.toIso8601String(),
+      'weight': weight,
+      'allergies': allergies,
+      'comorbidities': comorbidities != null ? comorbidities!.join(',') : null,
     };
   }
 
@@ -46,6 +55,11 @@ class Patient implements DatabaseItem {
       email: map['email'],
       address: map['address'],
       registrationDate: DateTime.parse(map['registrationDate']),
+      weight: map['weight'] != null ? map['weight'] as double : null,
+      allergies: map['allergies'],
+      comorbidities: map['comorbidities'] != null
+          ? (map['comorbidities'] as String).split(',')
+          : null,
     );
   }
 
@@ -64,6 +78,9 @@ class Patient implements DatabaseItem {
     String? email,
     String? address,
     DateTime? registrationDate,
+    double? weight,
+    String? allergies,
+    List<String>? comorbidities,
   }) {
     return Patient(
       id: id ?? this.id,
@@ -74,6 +91,9 @@ class Patient implements DatabaseItem {
       email: email ?? this.email,
       address: address ?? this.address,
       registrationDate: registrationDate ?? this.registrationDate,
+      weight: weight ?? this.weight,
+      allergies: allergies ?? this.allergies,
+      comorbidities: comorbidities ?? this.comorbidities,
     );
   }
 }
